@@ -1,0 +1,61 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "resources": [
+        {
+            "Type": "Microsoft.Network/publicIpAddresses",
+            "apiVersion": "2020-08-01",
+            "name": "publicipaddress",
+            "location": "EastUS",
+            "sku": {
+                "Name": "Standard"
+            },
+            "properties": {
+                "ipaddress": "10.25.23.22",
+                "publicIPAddressVersion": "IPv4",
+                "publicIpallocationMethod" : "static"
+            },
+            "resources":[ {
+                "Type" : "Microsoft.Network/PublicIpAddresses",
+                "apiversion" : "2020-08-01",
+                "Name" : "virtualnetwork",
+                "Location": "EastUS",
+                "Properties":
+            {
+                "Addressspace" : {
+                     "addressprefixes" : ["10.1.0.0/16"]
+                }
+            },
+			"resources":[ {
+				"Type": "subnets",
+				"apiversion" : "2020-05-01",
+				"Name" : "Subnet1",
+				"dependsOn": [
+					"vnet1"
+                ],
+            "Properties":
+            {
+                "addressprefixes" : ["10.1.1.0/24"]
+                }
+			},
+			{ 
+			   "Type": "subnets",
+               "apiversion" : "2020-05-01",
+               "Name" : "Subnet2",
+               "dependsOn": [
+                    "vnet1",
+                    "subnet1"
+                 ] ,
+            "Properties":
+            {
+                "addressprefixes" : ["10.1.2.0/24"]
+                }
+            }
+            ]
+            
+        }
+        ]
+		}
+]
+}
