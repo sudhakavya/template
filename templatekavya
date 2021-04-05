@@ -1,61 +1,192 @@
 {
-    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
-    "parameters": {},
-    "resources": [
-        {
-            "Type": "Microsoft.Network/publicIpAddresses",
-            "apiVersion": "2020-08-01",
-            "name": "publicipaddress",
-            "location": "EastUS",
-            "sku": {
-                "Name": "Standard"
-            },
-            "properties": {
-                "ipaddress": "10.25.23.22",
-                "publicIPAddressVersion": "IPv4",
-                "publicIpallocationMethod" : "static"
-            },
-            "resources":[ {
-                "Type" : "Microsoft.Network/PublicIpAddresses",
-                "apiversion" : "2020-08-01",
-                "Name" : "virtualnetwork",
-                "Location": "EastUS",
-                "Properties":
-            {
-                "Addressspace" : {
-                     "addressprefixes" : ["10.1.0.0/16"]
-                }
-            },
-			"resources":[ {
-				"Type": "subnets",
-				"apiversion" : "2020-05-01",
-				"Name" : "Subnet1",
-				"dependsOn": [
-					"vnet1"
-                ],
-            "Properties":
-            {
-                "addressprefixes" : ["10.1.1.0/24"]
-                }
-			},
-			{ 
-			   "Type": "subnets",
-               "apiversion" : "2020-05-01",
-               "Name" : "Subnet2",
-               "dependsOn": [
-                    "vnet1",
-                    "subnet1"
-                 ] ,
-            "Properties":
-            {
-                "addressprefixes" : ["10.1.2.0/24"]
-                }
-            }
-            ]
-            
-        }
-        ]
-		}
+ "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+ "contentVersion": "1.0.0.0",
+ "parameters": {
+ "AdminPassword": {
+ "type": "SecureString"
+ },
+ "UbuntuOSVersion": {
+ "defaultValue": "14.04.2-LTS",
+ "allowedValues": [
+ "12.04.5-LTS",
+ "14.04.2-LTS",
+ "15.04"
+ ],
+ "type": "String"
+ },
+ "storageType": {
+ "defaultValue": "Standard_LRS",
+ "allowedValues": [
+ "Standard_LRS",
+ "Standard_ZRS",
+ "Standard_GRS",
+ "Standard_RAGRS",
+ "Premium_LRS"
+ ],
+ "type": "String"
+ }
+ },
+ "variables": {
+ "sudhaImagePublisher": "Canonical",
+ "sudhaImageOffer": "UbuntuServer",
+ "sudhaOSDiskName": "sudhaOSDisk",
+ "sudhaVmSize": "Standard_D2_v3",
+ "sudhaVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'virtual')]",
+ "sudhaSubnetRef": "[concat(variables('sudhaVnetID'), '/subnets/', variables('virtualSubnet1Name'))]",
+ "sudhaStorageAccountContainerName": "vhds",
+ "sudhaNicName": "sudhakavya",
+ "storageName": "[concat('storage', uniqueString(resourceGroup().id))]"
+,
+ "virtualPrefix": "10.0.0.0/16",
+ "virtualSubnet1Name": "Subnet-1",
+ "virtualSubnet1Prefix": "10.0.0.0/24",
+ "virtualSubnet2Name": "Subnet-2",
+ "virtualSubnet2Prefix": "10.0.1.0/24"
+ }, "resources": [
+ {
+ "type": "Microsoft.Network/networkInterfaces",
+ "apiVersion": "2015-06-15",
+ "name": "kavya",
+ "location": "West US",
+ "dependsOn": [
+ "[resourceId('Microsoft.Network/virtualNetworks', 'vnet')]"
+ ],
+ "properties": {
+ "ipConfigurations": [
+ {
+ "name": "ipconfig1",
+ "properties": {
+ "privateIPAllocationMethod": "Dynamic",
+ "subnet": {
+ "id": "[variables('sudhaSubnetRef')]"
+ }
+ }
+ }
+ ]
+ }
+ },
+ {
+ "type": "Microsoft.Compute/virtualMachines",
+ "apiVersion": "2015-06-15",
+ "name": "sudhakavya",
+ "location": "West US",
+ "dependsOn": [
+ "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]","[concat('Microsoft.Network/networkInterfaces/', 'kavya')]"],
+ "properties": {
+ "hardwareProfile": {
+ "vmSize": "[variables('sudhaVmSize')]"
+ },
+ "osProfile": {
+ "computerName": "sudhakavya",
+ "adminUsername": "sudha",
+ "adminPassword": "[parameters('AdminPassword')]"
+ },
+ "storageProfile": {
+ "imageReference": {
+ "publisher": "[variables('sudhaImagePublisher')]",
+ "offer": "[variables('sudhaImageOffer')]",
+ "sku": "[parameters('UbuntuOSVersion')]",
+ "version": "latest" },
+ "osDisk": {
+ "name": "sudhaOSDisk",
+ "vhd": {
+ "uri": "[concat('http://', variables('storageName'), '.blob.core.windows.net/', variable'sudhaStorageAccountContainerName'), '/', variables('sudhaOSDiskName'), '.vhd')]"
+ },
+"caching": "ReadWrite",
+ "createOption": "FromImage"
+ }
+ },
+ "networkProfile": {
+ "networkInterfaces": [
+ {
+ "id": "[resourceId('Microsoft.Network/networkInterfaces', 'kavya')]"
+ }
+ ]
+ }
+ }
+ },
+ {
+ "type": "Microsoft.Storage/storageAccounts",
+ "apiVersion": "2015-06-15",
+ "name": "[variables('storageName')]",
+ "location": "West US",
+ "dependsOn": [],
+ "properties": {
+ "accountType": "[parameters('storageType')]"
+ }
+ },
+ {
+ "type": "Microsoft.Network/publicIpAddresses",
+ "apiVersion": "2020-08-01",
+ "name": "mypublicip",
+ "location": "West US",
+ "dependsOn": [
+ "[concat('Microsoft.Compute/virtualMachines/','sudhakavya')]"
+ ],
+ "sku": {
+ "Name": "Standard"
+ },
+ "properties": {
+ "ipaddress": "10.25.23.22",
+ "publicIPAddressVersion": "IPv4",
+ "publicIpallocationMethod": "static"
+ } },
+ {
+ "type": "Microsoft.Network/networkSecurityGroups",
+ "apiVersion": "2020-06-01",
+ "name": "networksecurity",
+ "location": "West US",
+ "properties": {
+ "securityRules": [
+ {
+ "name": "HTTP",
+ "properties": {
+ "priority": 1010,
+ "protocol": "TCP",
+ "access": "Allow",
+ "direction": "Inbound",
+ "sourceAddressPrefix": "*",
+ "sourcePortRange": "*",
+ "destinationAddressPrefix": "*",
+ "destinationPortRange": "80"
+ }
+ }
+ ]
+ }
+ },
+ {
+ "type": "Microsoft.Network/virtualNetworks",
+ "apiVersion": "2015-06-15",
+ "name": "vnet",
+ "location": "West US",
+ "dependsOn": [],
+ "properties": {
+ "addressSpace": {
+ "addressPrefixes": [
+ "[variables('virtualPrefix')]"
+ ]
+ },
+ "subnets": [
+ {
+ "name": "[variables('virtualSubnet1Name')]",
+ "properties": {
+ "addressPrefix": "[variables('virtualSubnet1Prefix')]"
+ }
+ },
+ {
+ "name": "[variables('virtualSubnet2Name')]",
+ "properties": { "addressPrefix"
+: "[variables('virtualSubnet2Prefix')]"
+ 
+}
+ 
+}
+ 
+]
+ 
+}
+ 
+}
+ 
 ]
 }
